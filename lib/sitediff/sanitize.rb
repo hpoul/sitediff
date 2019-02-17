@@ -6,6 +6,7 @@ require 'sitediff/sanitize/dom_transform'
 require 'sitediff/sanitize/regexp'
 require 'nokogiri'
 require 'set'
+require 'open3'
 
 class SiteDiff
   class Sanitizer
@@ -25,6 +26,19 @@ class SiteDiff
 
     def sanitize
       return '' if @html == '' # Quick return on empty input
+
+      # allow configuration of external sanitze script, which replaces internal functionality.
+      if (external_sanitize = @config['external_sanitize'])
+        command = external_sanitize['command']
+        stdin, error, status = Open3.capture3(command, :stdin_data=>@html)
+        if ! status.success?
+          puts "error while running external command." + error + "exit status: " + status.exitstatus.to_s
+          raise(InvalidSanitization, 'Running external sanitize command failed.')
+        else
+          @html = stdin
+          return @html
+        end
+      end
 
       @node = Sanitizer.domify(@html)
       @html = nil
